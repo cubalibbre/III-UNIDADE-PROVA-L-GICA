@@ -1,0 +1,142 @@
+import tkinter as tk
+from tkinter import messagebox
+import matplotlib.pyplot as plt
+import os
+import json
+
+class GerenciadorGastos:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Gerenciador de Gastos Pessoais")
+
+        self.gastos = []
+
+        # Carregar os gastos salvos, se houver
+        self.carregar_gastos()
+
+        # Configurações da interface
+        self.label_categoria = tk.Label(root, text="Categoria:")
+        self.label_categoria.grid(row=0, column=0)
+
+        self.entry_categoria = tk.Entry(root)
+        self.entry_categoria.grid(row=0, column=1)
+
+        self.label_valor = tk.Label(root, text="Valor (R$):")
+        self.label_valor.grid(row=1, column=0)
+
+        self.entry_valor = tk.Entry(root)
+        self.entry_valor.grid(row=1, column=1)
+
+        self.btn_adicionar = tk.Button(root, text="Adicionar Gasto", command=self.adicionar_gasto)
+        self.btn_adicionar.grid(row=2, columnspan=2)
+
+        self.btn_exibir_gastos = tk.Button(root, text="Exibir Todos os Gastos", command=self.exibir_gastos)
+        self.btn_exibir_gastos.grid(row=3, columnspan=2)
+
+        self.btn_total = tk.Button(root, text="Exibir Total de Gastos", command=self.exibir_total)
+        self.btn_total.grid(row=4, columnspan=2)
+
+        self.btn_grafico = tk.Button(root, text="Gerar Gráfico de Gastos", command=self.gerar_grafico)
+        self.btn_grafico.grid(row=5, columnspan=2)
+
+        self.btn_relatorio = tk.Button(root, text="Gerar Relatório", command=self.gerar_relatorio)
+        self.btn_relatorio.grid(row=6, columnspan=2)
+
+        self.text_area = tk.Text(root, height=10, width=40)
+        self.text_area.grid(row=7, columnspan=2)
+
+    def carregar_gastos(self):
+        """Carregar os gastos de um arquivo, se existir"""
+        if os.path.exists("gastos.json"):
+            with open("gastos.json", "r") as file:
+                self.gastos = json.load(file)
+
+    def salvar_gastos(self):
+        """Salvar os gastos em um arquivo"""
+        with open("gastos.json", "w") as file:
+            json.dump(self.gastos, file)
+
+    def adicionar_gasto(self):
+        categoria = self.entry_categoria.get()
+        try:
+            valor = float(self.entry_valor.get())
+        except ValueError:
+            messagebox.showerror("Erro", "Valor inválido. Digite um número válido.")
+            return
+
+        if categoria and valor > 0:
+            self.gastos.append({"categoria": categoria, "valor": valor})
+            messagebox.showinfo("Sucesso", "Gasto adicionado com sucesso!")
+            self.entry_categoria.delete(0, tk.END)
+            self.entry_valor.delete(0, tk.END)
+            self.salvar_gastos()  # Salva após adicionar
+        else:
+            messagebox.showerror("Erro", "Por favor, preencha todos os campos corretamente.")
+
+    def exibir_gastos(self):
+        self.text_area.delete(1.0, tk.END)
+        if not self.gastos:
+            self.text_area.insert(tk.END, "Nenhum gasto registrado.")
+        else:
+            for gasto in self.gastos:
+                self.text_area.insert(tk.END, f"Categoria: {gasto['categoria']} | Valor: R$ {gasto['valor']:.2f}\n")
+
+    def exibir_total(self):
+        total = sum(gasto['valor'] for gasto in self.gastos)
+        self.text_area.delete(1.0, tk.END)
+        self.text_area.insert(tk.END, f"Total de gastos: R$ {total:.2f}")
+
+    def gerar_grafico(self):
+        if not self.gastos:
+            messagebox.showwarning("Aviso", "Não há gastos registrados para gerar o gráfico.")
+            return
+        
+        categorias = {}
+        for gasto in self.gastos:
+            categoria = gasto['categoria']
+            valor = gasto['valor']
+            if categoria in categorias:
+                categorias[categoria] += valor
+            else:
+                categorias[categoria] = valor
+        
+        # Criando o gráfico de barras
+        plt.figure(figsize=(8, 6))
+        plt.bar(categorias.keys(), categorias.values(), color='skyblue')
+        plt.xlabel('Categoria')
+        plt.ylabel('Valor (R$)')
+        plt.title('Gastos por Categoria')
+        plt.xticks(rotation=45, ha="right")
+        plt.tight_layout()
+        plt.show()
+
+    def gerar_relatorio(self):
+        if not self.gastos:
+            messagebox.showwarning("Aviso", "Não há gastos registrados para gerar o relatório.")
+            return
+        
+        # Criar relatório em formato texto
+        relatorio = "Relatório de Gastos Pessoais\n"
+        relatorio += "=" * 30 + "\n"
+        for gasto in self.gastos:
+            relatorio += f"Categoria: {gasto['categoria']} | Valor: R$ {gasto['valor']:.2f}\n"
+        
+        total = sum(gasto['valor'] for gasto in self.gastos)
+        relatorio += "=" * 30 + "\n"
+        relatorio += f"Total de Gastos: R$ {total:.2f}\n"
+        
+        # Salvar o relatório em um arquivo de texto
+        with open("relatorio_gastos.txt", "w") as file:
+            file.write(relatorio)
+        
+        messagebox.showinfo("Sucesso", "Relatório gerado com sucesso!")
+        self.gerar_grafico()  # Gerar gráfico após criar o relatório
+
+# Função principal para rodar o app
+def main():
+    root = tk.Tk()
+    app = GerenciadorGastos(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
