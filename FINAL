@@ -1,0 +1,211 @@
+import tkinter as tk
+import json
+import os
+from fpdf import FPDF
+import matplotlib.pyplot as plt
+
+
+# Arquivos para salvar os dados
+USUARIOS_FILE = "usuarios.json"
+GASTOS_FILE = "gastos.json"
+
+# Carregar usuários cadastrados
+if os.path.exists(USUARIOS_FILE):
+    with open(USUARIOS_FILE, "r") as file:
+        usuarios = json.load(file)
+else:
+    usuarios = {}
+
+# Carregar gastos salvos
+if os.path.exists(GASTOS_FILE):
+    with open(GASTOS_FILE, "r") as file:
+        gastos = json.load(file)
+else:
+    gastos = []
+
+# Função para cadastrar usuário
+def cadastrar_usuario():
+    usuario = usuario_entry.get()
+    senha = senha_entry.get()
+
+    if usuario in usuarios:
+        erro_label.config(text="Usuário já existe!", fg="red")
+    elif usuario == "":
+        erro_label.config(text="Digite um usuário válido!", fg="red")
+    else:
+        usuarios[usuario] = senha
+        with open(USUARIOS_FILE, "w") as file:
+            json.dump(usuarios, file, indent=4)
+        erro_label.config(text="Cadastro realizado! Faça login.", fg="green")
+    if senha == "":
+        erro_label.config(text="Digite uma senha válida", fg="red")
+
+
+# Função para verificar login
+def verificar_login():
+    usuario = usuario_entry.get()
+    senha = senha_entry.get()
+
+    if usuario in usuarios and usuarios[usuario] == senha:
+        login_janela.destroy()  # Fecha a tela de login
+        abrir_tela_principal(usuario)
+    else:
+        erro_label.config(text="Login ou senha incorretos!", fg="red")
+
+# Função para abrir a tela principal
+def abrir_tela_principal(usuario):
+    global root, categoria_var, valor_entry, lista, bem_vindo_label
+
+    root = tk.Tk()
+    root.title("GERENCIADOR DE GASTOS")
+    root.geometry("1000x600")
+
+    bem_vindo_label = tk.Label(root, text=f"Bem-vindo, {usuario}!", font=("Arial black", 18))
+    bem_vindo_label.pack(pady=10)
+
+    frame_top = tk.Frame(root)
+    frame_top.pack(pady=10)
+
+    categoria_label = tk.Label(frame_top, text="Categoria:", font=("Arial black", 15))
+    categoria_label.grid(row=0, column=0, padx=5, pady=5)
+
+    # OptionMenu para selecionar entre 'lazer' e 'alimentação'
+    categoria_var = tk.StringVar()
+    categoria_var.set("lazer")  # Definindo 'lazer' como valor inicial
+    categoria_menu = tk.OptionMenu(frame_top, categoria_var, "lazer", "alimentação","transporte","saúde","moradia","outros")
+    categoria_menu.grid(row=0, column=1, padx=5, pady=5)
+
+    valor_label = tk.Label(frame_top, text="Valor (R$):", font=("Arial black", 15))
+    valor_label.grid(row=1, column=0, padx=5, pady=5)
+    valor_entry = tk.Entry(frame_top, font=("Arial", 12))
+    valor_entry.grid(row=1, column=1, padx=5, pady=5)
+
+    add_button = tk.Button(root, text="ADICIONAR O GASTO", font=("Arial", 15), command=adicionar_gasto)
+    add_button.pack(pady=5)
+
+    lista = tk.Listbox(root, font=("Arial", 15), width=80, height=15)
+    lista.pack(pady=10)
+
+    pdf_button = tk.Button(root, text="GERAR PDF", font=("Arial", 12), command=gerar_pdf)
+    pdf_button.pack(pady=5)
+
+    apagar_button = tk.Button(root, text="Apagar Todos", font=("Arial", 12), command=apagar_todos)
+    apagar_button.pack(pady=5)
+
+    atualizar_lista()
+    root.mainloop()
+
+# Função para adicionar gasto
+def adicionar_gasto():
+    categoria = categoria_var.get()  # Obtém o valor selecionado no OptionMenu
+    valor = valor_entry.get()
+   
+    # Verificar se o valor é um número decimal válido
+    if categoria != "" and valor.replace(",", "").replace(".", "").isdigit() and valor.count(",") <= 1:
+        valor = valor.replace(",", ".")  # Trocar a vírgula por ponto
+        valor = f"{float(valor):.2f}".replace(".", ",")  # Formatar como R$ XX,XX
+
+        gastos.append({"categoria": categoria, "valor": valor})
+        with open(GASTOS_FILE, "w") as file:
+            json.dump(gastos, file, indent=4)
+        atualizar_lista()
+
+        valor_entry.delete(0, tk.END)
+    else:
+        erro_label.config(text="Valor inválido! Digite um valor numérico.", fg="red")
+
+
+# Função para atualizar lista
+def atualizar_lista():
+    lista.delete(0, tk.END)
+    for gasto in gastos:
+        lista.insert(tk.END, f"{gasto['categoria']}: R$ {gasto['valor']}")
+
+# Função para gerar PDF
+# Função para gerar o PDF com o gráfico de pizza
+def gerar_pdf():
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, "Relatório de Gastos", ln=True, align='C')
+    pdf.ln(10)
+    
+    # Adicionar os gastos no relatório
+    for gasto in gastos:
+        pdf.cell(200, 10, f"Categoria: {gasto['categoria']} - Valor: R$ {gasto['valor']}", ln=True)
+
+    # Gerar gráfico de pizza
+    gerar_grafico_pizza()
+
+    # Adicionar o gráfico de pizza ao PDF
+    pdf.ln(10)  # Espaço entre o texto e o gráfico
+    pdf.image("grafico_pizza.png", x=10, y=pdf.get_y(), w=180)  # Adicionando a imagem do gráfico
+
+    pdf.output("relatorio_gastos.pdf")
+    print("PDF gerado!")
+
+# Função para gerar o gráfico de pizza e salvar como imagem
+def gerar_grafico_pizza():
+    # Contagem dos valores por categoria
+    categorias = {}
+    for gasto in gastos:
+        categoria = gasto['categoria']
+        valor = float(gasto['valor'].replace(",", "."))  # Converter para float
+        if categoria in categorias:
+            categorias[categoria] += valor
+        else:
+            categorias[categoria] = valor
+
+    # Preparando dados para o gráfico
+    labels = list(categorias.keys())  # Categorias
+    valores = list(categorias.values())  # Valores totais por categoria
+
+    # Criando o gráfico de pizza
+    plt.figure(figsize=(6, 6))
+    plt.pie(valores, labels=labels, autopct=lambda pct: f"R$ {pct / 100. * sum(valores):,.2f}", startangle=90, colors=['#ff9999','#66b3ff','#99ff99','#ffcc99'])
+    plt.axis('equal')  # Para deixar o gráfico de pizza circular
+
+    # Salvando a imagem
+    plt.savefig("grafico_pizza.png")  # Salva o gráfico como uma imagem no formato PNG
+    plt.close()  # Fecha o gráfico após salvar
+
+
+# Função para apagar todos os gastos
+def apagar_todos():
+    global gastos
+    gastos = []
+    with open(GASTOS_FILE, "w") as file:
+        json.dump(gastos, file, indent=4)
+    atualizar_lista()
+
+# Criar janela de login
+login_janela = tk.Tk()
+login_janela.title("Login")
+login_janela.geometry("600x400")
+
+login_label = tk.Label(login_janela, text="Faça o login", font=("Calibri", 30))
+login_label.pack(pady=10)
+
+frame_login = tk.Frame(login_janela)
+frame_login.pack(pady=10)
+
+usuario_label = tk.Label(frame_login, text="Usuário:", font=("Arial", 12))
+usuario_label.grid(row=0, column=0, padx=5, pady=5)
+usuario_entry = tk.Entry(frame_login, font=("Arial", 12))
+usuario_entry.grid(row=0, column=1, padx=5, pady=5)
+
+senha_label = tk.Label(frame_login, text="Senha:", font=("Arial", 12))
+senha_label.grid(row=1, column=0, padx=5, pady=5)
+senha_entry = tk.Entry(frame_login, font=("Arial", 12), show="*")  # Esconde a senha
+senha_entry.grid(row=1, column=1, padx=5, pady=5)
+
+erro_label = tk.Label(login_janela, text="", font=("Arial", 20))
+erro_label.pack()
+
+login_button = tk.Button(login_janela, text="Entrar", font=("Arial", 12), command=verificar_login)
+login_button.pack(pady=5)
+
+cadastro_button = tk.Button(login_janela, text="Cadastrar", font=("Arial", 12), command=cadastrar_usuario)
+cadastro_button.pack(pady=5)
+
+login_janela.mainloop()
