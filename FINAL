@@ -3,6 +3,7 @@ import json
 import os
 from fpdf import FPDF
 import matplotlib.pyplot as plt
+import bcrypt as bc
 
 
 # Arquivos para salvar os dados
@@ -26,31 +27,38 @@ else:
 # Função para cadastrar usuário
 def cadastrar_usuario():
     usuario = usuario_entry.get()
-    senha = senha_entry.get()
-
+    senha = senha_entry.get().encode('utf-8')  
+    print(senha)
+    senha_hash = bc.hashpw(senha, bc.gensalt()) 
+    print(senha_hash)
+    
     if usuario in usuarios:
         erro_label.config(text="Usuário já existe!", fg="red")
     elif usuario == "":
         erro_label.config(text="Digite um usuário válido!", fg="red")
     else:
-        usuarios[usuario] = senha
+        usuarios[usuario] = senha_hash.decode('utf-8')  # Armazene o hash no formato de string
         with open(USUARIOS_FILE, "w") as file:
             json.dump(usuarios, file, indent=4)
         erro_label.config(text="Cadastro realizado! Faça login.", fg="green")
-    if senha == "":
-        erro_label.config(text="Digite uma senha válida", fg="red")
 
 
 # Função para verificar login
 def verificar_login():
     usuario = usuario_entry.get()
-    senha = senha_entry.get()
-
-    if usuario in usuarios and usuarios[usuario] == senha:
-        login_janela.destroy()  # Fecha a tela de login
-        abrir_tela_principal(usuario)
+    senha = senha_entry.get().encode('utf-8')  
+    print (senha)
+    if usuario in usuarios:
+        hash = usuarios[usuario].encode('utf-8') 
+        print(hash)
+        if bc.checkpw(senha, hash): 
+            login_janela.destroy()
+            abrir_tela_principal(usuario)
+        else:
+            erro_label.config(text="Login ou senha incorretos!", fg="red")
     else:
         erro_label.config(text="Login ou senha incorretos!", fg="red")
+
 
 # Função para abrir a tela principal
 def abrir_tela_principal(usuario):
